@@ -1,0 +1,240 @@
+From dbb93c90e2a28098d343650bcc61743b1a1f60fd Mon Sep 17 00:00:00 2001
+From: Demeil Khoshaba <demeil2005@gmail.com>
+Date: Sun, 12 Apr 2026 18:45:52 -0500
+Subject: [PATCH] hw 6.2 lazy finished
+
+---
+ 0001-hw-6.1-eager-finished.patch | 97 ++++++++++++++++++++++++++++++++
+ sysproc.c                        | 84 ++++++++++++++++++++-------
+ trap.c                           |  7 ++-
+ 3 files changed, 166 insertions(+), 22 deletions(-)
+ create mode 100644 0001-hw-6.1-eager-finished.patch
+
+diff --git a/0001-hw-6.1-eager-finished.patch b/0001-hw-6.1-eager-finished.patch
+new file mode 100644
+index 0000000..4935e71
+--- /dev/null
++++ b/0001-hw-6.1-eager-finished.patch
+@@ -0,0 +1,97 @@
++From 8fc4dc44dcce5357d093363184054373219892a8 Mon Sep 17 00:00:00 2001
++From: Demeil Khoshaba <demeil2005@gmail.com>
++Date: Sun, 12 Apr 2026 18:22:59 -0500
++Subject: [PATCH] hw 6.1 eager finished
++
++---
++ proc.c    |  6 ++++++
++ sysproc.c | 48 +++++++++++++++++++++++++++++++++++++++++++-----
++ 2 files changed, 49 insertions(+), 5 deletions(-)
++
++diff --git a/proc.c b/proc.c
++index 0e21eaf..56ccb1a 100644
++--- a/proc.c
+++++ b/proc.c
++@@ -36,6 +36,7 @@ allocproc(void)
++ {
++   struct proc *p;
++   char *sp;
+++  int i;
++ 
++   acquire(&ptable.lock);
++ 
++@@ -47,6 +48,11 @@ allocproc(void)
++   return 0;
++ 
++ found:
+++  p->mmaptop = (char*)MMAPBASE;
+++  p->mmapcount = 0;
+++  for (i = 0; i < 10; i++) 
+++	  memset(p->mmaps, 0x0, sizeof(p->mmaps));
+++
++   p->state = EMBRYO;
++   p->pid = nextpid++;
++ 
++diff --git a/sysproc.c b/sysproc.c
++index 9a9eb7a..c473567 100644
++--- a/sysproc.c
+++++ b/sysproc.c
++@@ -96,12 +96,50 @@ sys_uptime(void)
++ addr_t
++ sys_mmap(void)
++ {
++-  int fd, flags;
++-  if(argint(0,&fd) < 0 || argint(1,&flags) < 0)
++-    return MMAP_FAILED;
+++	int fd, flags;
+++	struct file *f;
+++	uint64 sz;
++ 
++-  // TODO: your implementation
++-  return MMAP_FAILED;
+++	if(argint(0, &fd) < 0 || argint(1, &flags) < 0)
+++		return MMAP_FAILED;
+++
+++	if(fd < 0 || fd >= NOFILE || (f = proc->ofile[fd]) == 0 || f->type != FD_INODE)
+++		return MMAP_FAILED;
+++
+++	if(proc->mmapcount >= 10)
+++		return MMAP_FAILED;
+++
+++	ilock(f->ip);
+++	sz = f->ip->size;
+++	iunlock(f->ip);
+++
+++	addr_t addr = (addr_t)proc->mmaptop;
+++	uint64 newsz = PGROUNDUP(sz);
+++
+++	for(addr_t a = addr; a < addr + newsz; a += PGSIZE){
+++		char *mem = kalloc();
+++		if(mem == 0) return MMAP_FAILED;
+++		memset(mem, 0, PGSIZE);
+++		if(mappages(proc->pgdir, (void*)a, PGSIZE, V2P(mem), PTE_W|PTE_U) < 0){
+++			kfree(mem);
+++			return MMAP_FAILED;
+++		}
+++	}
+++
+++	ilock(f->ip);
+++	if(readi(f->ip, (char*)addr, 0, sz) != sz){
+++		iunlock(f->ip);
+++		return MMAP_FAILED;
+++	}
+++	iunlock(f->ip);
+++
+++	proc->mmaps[proc->mmapcount].fd = fd;
+++	proc->mmaps[proc->mmapcount].start = addr;
+++	proc->mmapcount++;
+++
+++	proc->mmaptop += newsz;
+++
+++	return addr;
++ }
++ 
++ int
++-- 
++2.43.0
++
+diff --git a/sysproc.c b/sysproc.c
+index c473567..88464bf 100644
+--- a/sysproc.c
++++ b/sysproc.c
+@@ -116,35 +116,79 @@ sys_mmap(void)
+ 	addr_t addr = (addr_t)proc->mmaptop;
+ 	uint64 newsz = PGROUNDUP(sz);
+ 
+-	for(addr_t a = addr; a < addr + newsz; a += PGSIZE){
+-		char *mem = kalloc();
+-		if(mem == 0) return MMAP_FAILED;
+-		memset(mem, 0, PGSIZE);
+-		if(mappages(proc->pgdir, (void*)a, PGSIZE, V2P(mem), PTE_W|PTE_U) < 0){
+-			kfree(mem);
+-			return MMAP_FAILED;
+-		}
+-	}
+-
+-	ilock(f->ip);
+-	if(readi(f->ip, (char*)addr, 0, sz) != sz){
+-		iunlock(f->ip);
+-		return MMAP_FAILED;
+-	}
+-	iunlock(f->ip);
+-
+ 	proc->mmaps[proc->mmapcount].fd = fd;
+ 	proc->mmaps[proc->mmapcount].start = addr;
+ 	proc->mmapcount++;
+-
+ 	proc->mmaptop += newsz;
+ 
++	if (flags == 0) {
++		for(addr_t a = addr; a < addr + newsz; a += PGSIZE){
++			char *mem = kalloc();
++			if(mem == 0) return MMAP_FAILED;
++			memset(mem, 0, PGSIZE);
++			if(mappages(proc->pgdir, (void*)a, PGSIZE, V2P(mem), PTE_W|PTE_U) < 0){
++				kfree(mem);
++				return MMAP_FAILED;
++			}
++		}
++
++		ilock(f->ip);
++		if(readi(f->ip, (char*)addr, 0, sz) != sz){
++			iunlock(f->ip);
++			return MMAP_FAILED;
++		}
++		iunlock(f->ip);
++	}
++
+ 	return addr;
+ }
+ 
+ int
+ handle_pagefault(addr_t va)
+ {
+-  // TODO: your code here
+-  return 0;
++	struct file *f = 0;
++	addr_t region_start = 0;
++	uint64 file_sz = 0;
++
++	for(int i = 0; i < proc->mmapcount; i++){
++		addr_t start = proc->mmaps[i].start;
++		struct file *temp_f = proc->ofile[proc->mmaps[i].fd];
++
++		ilock(temp_f->ip);
++		uint64 sz = temp_f->ip->size;
++		iunlock(temp_f->ip);
++
++		if(va >= start && va < start + PGROUNDUP(sz)){
++			f = temp_f;
++			region_start = start;
++			file_sz = sz;
++			break;
++		}
++	}
++
++	if(f == 0) return -1;
++
++	addr_t fault_page = PGROUNDDOWN(va);
++	char *mem = kalloc();
++	if(mem == 0) return -1;
++	memset(mem, 0, PGSIZE);
++
++	if(mappages(proc->pgdir, (void*)fault_page, PGSIZE, V2P(mem), PTE_W|PTE_U) < 0){
++		kfree(mem);
++		return -1;
++	}
++
++	uint64 offset = fault_page - region_start;
++	uint n = PGSIZE;
++	if(offset + n > file_sz)
++		n = file_sz - offset;
++
++	ilock(f->ip);
++	if(readi(f->ip, mem, offset, n) < 0){
++		iunlock(f->ip);
++		return -1;
++	}
++	iunlock(f->ip);
++
++	return 0; 
+ }
+diff --git a/trap.c b/trap.c
+index 395686b..a45c120 100644
+--- a/trap.c
++++ b/trap.c
+@@ -78,8 +78,11 @@ trap(struct trapframe *tf)
+     break;
+ 
+   case T_PGFLT:
+-    if (handle_pagefault(rcr2()))
+-      break;
++    if(handle_pagefault(rcr2()) == 0) {
++      return;
++    }
++    proc->killed = 1;
++    break;
+     // fall-through to default
+ 
+   //PAGEBREAK: 13
+-- 
+2.43.0
+

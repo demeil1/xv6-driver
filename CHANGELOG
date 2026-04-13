@@ -1,0 +1,21 @@
+03/29/2026 - Demeil Khoshaba <dkhos2@uic.edu>
+Makefile: 
+	include mouse.c & mouse_test.c in KERNOBJS and UPROGS respectively
+defs.h: 
+	add mouseinit() & mouseintr() headers
+file.h: 
+	define MOUSE macro
+init.c: 
+	create "mouse" device file with mknod()
+main.c: 
+	add mouseinit() to main()
+traps.h: 
+	define IRQ_MOUSE macro
+trap.c: 
+	add case T_IRQ0 + IRQ_MOUSE to trap() switch statement
+mouse.h:
+	create mouse header file
+mouse.c:
+	create mouse driver + interrupt handler
+mouse_test.c:
+	create userspace program to test that mouse works
