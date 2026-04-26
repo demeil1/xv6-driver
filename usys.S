@@ -31,3 +31,6 @@ SYSCALL(sbrk)
 SYSCALL(sleep)
 SYSCALL(uptime)
 SYSCALL(ioctl)
+
+SYSCALL(vgamode)
+SYSCALL(vgaplot)

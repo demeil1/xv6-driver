@@ -16,6 +16,9 @@
 #include "fcntl.h"
 #include "traps.h"
 
+#include "vga.h"
+#include "memlayout.h"
+
 
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
@@ -458,5 +461,46 @@ sys_pipe(void)
   }
   fd[0] = fd0;
   fd[1] = fd1;
+  return 0;
+}
+
+
+
+
+// System call to switch VGA modes (13 for graphics, 3 for text)
+uint64
+sys_vgamode(void)
+{
+  int mode;
+
+  // Retrieve the integer argument passed from the user program
+  if(argint(0, &mode) < 0)
+    return -1;
+
+  if(mode == 13) {
+    vgaMode13();
+  } else if (mode == 3) {
+    vgaMode3();
+  }
+  return 0;
+}
+
+// System call to plot a single pixel
+uint64
+sys_vgaplot(void)
+{
+  int x, y, color;
+
+  // Retrieve the three integer arguments (x, y, color)
+  if(argint(0, &x) < 0 || argint(1, &y) < 0 || argint(2, &color) < 0)
+    return -1;
+
+  // Boundary check to ensure we don't write outside the VGA memory
+  if (x >= 0 && x < 320 && y >= 0 && y < 200) {
+    // Physical address 0xA0000 is where VGA memory starts.
+    // KERNBASE is used because the kernel sees physical memory mapped to high addresses.
+    uchar *vga_mem = (uchar *)(KERNBASE + 0xA0000);
+    vga_mem[y * 320 + x] = (uchar)color;
+  }
   return 0;
 }

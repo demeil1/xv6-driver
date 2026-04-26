@@ -27,6 +27,9 @@ int sleep(int);
 int uptime(void);
 int ioctl(int, int, int);
 
+int vgamode(int);
+int vgaplot(int,int,int);
+
 // ulib.c
 int stat(char*, struct stat*);
 char* strcpy(char*, char*);

@@ -125,6 +125,10 @@ extern addr_t sys_write(void);
 extern addr_t sys_uptime(void);
 extern addr_t sys_ioctl(void);
 
+extern uint64 sys_vgamode(void);
+extern uint64 sys_vgaplot(void);
+
+
 // PAGEBREAK!
 static addr_t (*syscalls[])(void) = {
 
@@ -150,6 +154,8 @@ static addr_t (*syscalls[])(void) = {
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
 [SYS_ioctl]   sys_ioctl,
+[SYS_vgamode] sys_vgamode,
+[SYS_vgaplot] sys_vgaplot,
 };
 
 void
