@@ -59,83 +59,83 @@ int main(void) {
 	}
 
 	while(1) {
-		if(read(fd, packet, 3) == 3) {
+		if(read(fd, packet, 3) != 3)
+			continue;
 
-			// check mouse sync
-			if (!(packet[0] & 0x08)) {
-				uchar dummy;
-				read(fd, &dummy, 1);
-				continue;
-			}
+		// check mouse sync
+		if (!(packet[0] & 0x08)) {
+			uchar dummy;
+			read(fd, &dummy, 1);
+			continue;
+		}
 
-			// erase cursor from CRT array
-			if (oldy < PALETTE_Y) {
-				vgaplot(oldx, oldy, BLACK);
-				vgaplot(oldx+1,oldy,BLACK);
-				vgaplot(oldx-1,oldy,BLACK);
-				vgaplot(oldx,oldy+1,BLACK);
-				vgaplot(oldx,oldy-1,BLACK);
+		// erase cursor from CRT array
+		if (oldy < PALETTE_Y) {
+			vgaplot(oldx, oldy, BLACK);
+			vgaplot(oldx+1,oldy,BLACK);
+			vgaplot(oldx-1,oldy,BLACK);
+			vgaplot(oldx,oldy+1,BLACK);
+			vgaplot(oldx,oldy-1,BLACK);
+		} else {
+			draw_palette();
+		}
+
+		int left_btn = packet[0] & 0x01;
+		int right_btn = packet[0] & 0x02;
+
+		// slow down the brush so it doesn't move too fast
+		int dx = ((signed char)packet[1]) / 2; 
+		int dy = ((signed char)packet[2]) / 2;
+
+		x += dx;
+		y -= dy; // keep y inverted
+
+		// boundary checks
+		if (x < 0) x = 0;
+		if (x >= SCREEN_W) x = SCREEN_W - 1;
+		if (y < 0) y = 0;
+		if (y >= SCREEN_H) y = SCREEN_H - 1;
+
+		// draw
+		if (left_btn) {
+			if (y < PALETTE_Y) {
+				// draw brush
+				vgaplot(x, y, current_color);
+				vgaplot(x+1, y, current_color);
+				vgaplot(x, y+1, current_color);
+				vgaplot(x+1, y+1, current_color);
 			} else {
-				draw_palette();
+				// choose color
+				int color_index = x / PALETTE_SWATCH_W;
+				if (color_index < num_colors) current_color = colors[color_index];
 			}
+		}
 
-			int left_btn = packet[0] & 0x01;
-			int right_btn = packet[0] & 0x02;
 
-			// slow down the brush so it doesn't move too fast
-			int dx = ((signed char)packet[1]) / 2; 
-			int dy = ((signed char)packet[2]) / 2;
+		// draw cursor
+		if(y < PALETTE_Y){
+			vgaplot(x,y,current_color);
 
-			x += dx;
-			y -= dy; // keep y inverted
+			vgaplot(x+1,y,current_color);
+			vgaplot(x-1,y,current_color);
+			vgaplot(x,y+1,current_color);
+			vgaplot(x,y-1,current_color);
+		}else{
+			vgaplot(x,y,WHITE);
+		}
 
-			// boundary checks
-			if (x < 0) x = 0;
-			if (x >= SCREEN_W) x = SCREEN_W - 1;
-			if (y < 0) y = 0;
-			if (y >= SCREEN_H) y = SCREEN_H - 1;
 
-			// draw
-			if (left_btn) {
-				if (y < PALETTE_Y) {
-					// draw brush
-					vgaplot(x, y, current_color);
-					vgaplot(x+1, y, current_color);
-					vgaplot(x, y+1, current_color);
-					vgaplot(x+1, y+1, current_color);
-				} else {
-					// choose color
-					int color_index = x / PALETTE_SWATCH_W;
-					if (color_index < num_colors) current_color = colors[color_index];
+		oldx = x;
+		oldy = y;
+
+		if (right_btn) {
+			// clear drawing area
+			for(int i = 0; i < SCREEN_W; i++) {
+				for(int j = 0; j < PALETTE_Y; j++) {
+					vgaplot(i, j, BLACK);
 				}
 			}
-
-
-			// draw cursor
-			if(y < PALETTE_Y){
-				vgaplot(x,y,current_color);
-
-				vgaplot(x+1,y,current_color);
-				vgaplot(x-1,y,current_color);
-				vgaplot(x,y+1,current_color);
-				vgaplot(x,y-1,current_color);
-			}else{
-				vgaplot(x,y,WHITE);
-			}
-
-
-			oldx = x;
-			oldy = y;
-
-			if (right_btn) {
-				// clear drawing area
-				for(int i = 0; i < SCREEN_W; i++) {
-					for(int j = 0; j < PALETTE_Y; j++) {
-						vgaplot(i, j, BLACK);
-					}
-				}
-				break;
-			}
+			break;
 		}
 	}
 	close(fd);
